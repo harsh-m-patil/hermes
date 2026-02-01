@@ -6,6 +6,7 @@ export const env = createEnv({
   server: {
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_APP_TOKEN: z.string().min(1),
+    AGENT_SERVER_URL: z.string().min(1),
     NODE_ENV: z
       .enum(["development", "production", "test"])
       .default("development"),
