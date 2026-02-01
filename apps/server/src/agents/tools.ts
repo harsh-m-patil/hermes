@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { env } from "@hermes/env/server";
 import { tool } from "@openai/agents";
+import { Portkey } from "portkey-ai";
 import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
@@ -9,6 +11,10 @@ const VercelLogsSchema = z.object({});
 const GhIssueSchema = z.object({
   title: z.string().trim().min(1),
   body: z.string().trim().min(1),
+});
+
+const PortkeyCreateApiKeySchema = z.object({
+  name: z.string().trim().min(1),
 });
 
 export const vercelInspectLogsTool = tool({
@@ -73,5 +79,34 @@ export const ghCreateIssueTool = tool({
         exitCode: err.code ?? 1,
       };
     }
+  },
+});
+
+export const createPortkeyApiKeyTool = tool({
+  name: "create_api_key",
+  description:
+    "Call when asked for AI api key. Create Portkey API key. Input: {name, type, subType, workspaceId?, scopes}. Output: {apiKey}.",
+  parameters: PortkeyCreateApiKeySchema,
+  execute: async (input) => {
+    if (!env.PORTKEY_API_KEY) {
+      throw new Error("Missing PORTKEY_API_KEY");
+    }
+    const workspaceId = env.PORTKEY_WORKSPACE_ID;
+    if (!workspaceId) {
+      throw new Error("Missing workspaceId");
+    }
+
+    const scopes = ["completions.write"]
+
+    const portkey = new Portkey({ apiKey: env.PORTKEY_API_KEY });
+    const apiKey = await portkey.apiKeys.create({
+      name: input.name,
+      type: "organisation",
+      "sub-type": "service",
+      workspace_id: workspaceId,
+      scopes,
+    });
+
+    return { apiKey };
   },
 });

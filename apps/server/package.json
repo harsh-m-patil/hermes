@@ -17,6 +17,7 @@
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.8.2",
+    "portkey-ai": "^3.0.1",
     "zod": "catalog:"
   },
   "devDependencies": {
