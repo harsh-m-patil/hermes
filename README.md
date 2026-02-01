@@ -62,11 +62,39 @@ Monorepo split by runtime:
 
 ```mermaid
 flowchart TB
-  web["apps/web<br/>Next.js UI (3001)"] -->|HTTP| server["apps/server<br/>Hono API (3000)<br/>Agents + Routes"]
-  slack["apps/slack<br/>Slack Bolt (Socket)"] -->|HTTP| server
-  future["Future integrations<br/>(Jira, Linear, Google Chat, etc.)"] -.->|HTTP| server
-  server -->|DB| db["packages/db<br/>Drizzle + Postgres"]
-  
+  subgraph web_group["apps/web"]
+    web["Next.js UI (3001)"]
+    web_tool_next["tool: Next.js 16 App Router"]
+    web_tool_ui["tool: TailwindCSS + shadcn/ui"]
+  end
+
+  subgraph server_group["apps/server"]
+    server["Hono API (3000)<br/>Agents + Routes"]
+    server_tool_hono["tool: Hono"]
+    server_tool_agents["tool: OpenAI Agents SDK"]
+  end
+
+  subgraph slack_group["apps/slack"]
+    slack["Slack Bolt (Socket)"]
+    slack_tool_bolt["tool: Slack Bolt"]
+  end
+
+  subgraph future_group["Future integrations"]
+    future["(Jira, Linear, Google Chat, etc.)"]
+    future_tool_http["tool: HTTP clients"]
+  end
+
+  subgraph db_group["packages/db"]
+    db["Drizzle + Postgres"]
+    db_tool_drizzle["tool: Drizzle ORM"]
+    db_tool_pg["tool: PostgreSQL (Neon)"]
+  end
+
+  web -->|HTTP| server
+  slack -->|HTTP| server
+  future -.->|HTTP| server
+  server -->|DB| db
+
   style future fill:#e0e7ff,stroke:#6366f1,stroke-dasharray: 5 5,color:#000
 ```
 
@@ -90,11 +118,15 @@ Orchestrator:
 ```mermaid
 flowchart TB
   req([request]) --> orch[Orchestrator]
+  orch --> orch_tool["tool: OpenAI model"]
   orch --> triage[triage_agent]
+  triage --> triage_tool["tool: gh_create_issue?"]
   orch --> memory["memory_agent<br/>DB"]
+  memory --> memory_tool["tool: db_read"]
   orch --> learning["add_learning_agent<br/>DB"]
+  learning --> learning_tool["tool: db_write"]
   orch --> logs[vercel_inspect_logs]
-  triage --> maybe[gh_create_issue?]
+  logs --> logs_tool["tool: Vercel Logs API"]
   orch --> res([response])
 ```
 
@@ -103,10 +135,15 @@ Sequential:
 ```mermaid
 flowchart TB
   issue([issue]) --> triage
+  triage --> triage_tool["tool: gh_create_issue?"]
   triage --> memory[memory]:::db
+  memory --> memory_tool["tool: db_read"]
   memory --> solution
+  solution --> solution_tool["tool: OpenAI model"]
   solution --> validator
+  validator --> validator_tool["tool: OpenAI model"]
   validator --> learning[learning]:::db
+  learning --> learning_tool["tool: db_write"]
   learning --> response([response])
   classDef db fill:#f3f4f6,stroke:#9ca3af,color:#111827;
 ```
