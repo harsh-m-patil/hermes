@@ -85,7 +85,7 @@ export const ghCreateIssueTool = tool({
 export const createPortkeyApiKeyTool = tool({
   name: "create_api_key",
   description:
-    "Call when asked for AI api key. Create Portkey API key. Input: {name, type, subType, workspaceId?, scopes}. Output: {apiKey}.",
+    "Call when asked for AI api key. Create Portkey API key. Input: {name, type, subType, workspaceId?, scopes}. Output: {apiKey}. API key can be viewed in the portkey dashboard",
   parameters: PortkeyCreateApiKeySchema,
   execute: async (input) => {
     if (!env.PORTKEY_API_KEY) {
@@ -96,17 +96,15 @@ export const createPortkeyApiKeyTool = tool({
       throw new Error("Missing workspaceId");
     }
 
-    const scopes = ["completions.write"]
-
     const portkey = new Portkey({ apiKey: env.PORTKEY_API_KEY });
-    const apiKey = await portkey.apiKeys.create({
+
+    const apiKey = await portkey.virtualKeys.create({
       name: input.name,
-      type: "organisation",
-      "sub-type": "service",
-      workspace_id: workspaceId,
-      scopes,
-    });
+      provider: "openai",
+      key: env.OPENAI_API_KEY,
+    })
 
     return { apiKey };
   },
 });
+
