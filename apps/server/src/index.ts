@@ -3,11 +3,14 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { initAgentObservability } from "./agents/observability";
+import { learningRouter } from "./routers/learning";
 import { learningsRouter } from "./routers/learnings";
 import { memoryRouter } from "./routers/memory";
 import { demoRouter } from "./routers/orchestrator";
 import { sequentialRouter } from "./routers/sequential";
+import { solutionRouter } from "./routers/solution";
 import { triageRouter } from "./routers/triage";
+import { validatorRouter } from "./routers/validator";
 
 initAgentObservability();
 
@@ -34,6 +37,9 @@ app.get("/", (c) => {
 app.route("/agents/orchestrator", demoRouter);
 app.route("/agents/triage", triageRouter);
 app.route("/agents/memory", memoryRouter);
+app.route("/agents/solution", solutionRouter);
+app.route("/agents/validator", validatorRouter);
+app.route("/agents/learning", learningRouter);
 app.route("/agents/sequential", sequentialRouter);
 app.route("/learnings", learningsRouter);
 

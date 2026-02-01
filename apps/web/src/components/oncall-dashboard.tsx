@@ -101,11 +101,146 @@ export default function OncallDashboard({
 	const [loading, setLoading] = useState(false);
 	const [lastRun, setLastRun] = useState<Date | null>(null);
 	const [useSequential, setUseSequential] = useState(false);
+	const [activeTab, setActiveTab] = useState<"agent" | "learnings">("agent");
+	const [activeStep, setActiveStep] = useState<string | null>(null);
+	const [completedSteps, setCompletedSteps] = useState<Record<string, boolean>>(
+		{}
+	);
 
 	const prompt = [title.trim(), context.trim()].filter(Boolean).join("\n\n");
 	const canSubmit = prompt.length > 0 && !loading;
 	const agentPath = useSequential ? "sequential" : "orchestrator";
 	const agentLabel = useSequential ? "Sequential" : "Orchestrator";
+	const sequentialSteps = [
+		{ id: "triage", label: "Triage" },
+		{ id: "memory", label: "Memory" },
+		{ id: "solution", label: "Solution" },
+		{ id: "validator", label: "Validator" },
+		{ id: "learning", label: "Learning" },
+	];
+
+	const runStep = async <T,>(input: {
+		stepId: string;
+		path: string;
+		payload: Record<string, unknown>;
+		getResult: (json: unknown) => T;
+	}) => {
+		setActiveStep(input.stepId);
+		const response = await fetch(`${env.NEXT_PUBLIC_SERVER_URL}${input.path}`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(input.payload),
+		});
+
+		if (!response.ok) {
+			const text = await response.text().catch(() => "");
+			throw new Error(
+				`Agent server ${response.status}: ${text || response.statusText}`
+			);
+		}
+
+		const json = await response.json().catch(() => null);
+		const result = input.getResult(json);
+		setCompletedSteps((prev) => ({ ...prev, [input.stepId]: true }));
+		return result;
+	};
+
+	const runSequentialPipeline = async () => {
+		const triage = await runStep({
+			stepId: "triage",
+			path: "/agents/triage",
+			payload: { incident: prompt },
+			getResult: (json) => {
+				if (!json || typeof json !== "object" || !("result" in json)) {
+					throw new Error("Missing triage result");
+				}
+				return (json as { result?: string }).result ?? null;
+			},
+		});
+		const memory = await runStep({
+			stepId: "memory",
+			path: "/agents/memory",
+			payload: { question: prompt },
+			getResult: (json) => {
+				if (!json || typeof json !== "object" || !("result" in json)) {
+					throw new Error("Missing memory result");
+				}
+				return (json as { result?: string }).result ?? null;
+			},
+		});
+		const solution = await runStep({
+			stepId: "solution",
+			path: "/agents/solution",
+			payload: { issue: prompt, triage, memory },
+			getResult: (json) => {
+				if (!json || typeof json !== "object" || !("result" in json)) {
+					throw new Error("Missing solution result");
+				}
+				const value = (json as { result?: string }).result;
+				if (!value) {
+					throw new Error("Missing solution result");
+				}
+				return value;
+			},
+		});
+		const validation = await runStep({
+			stepId: "validator",
+			path: "/agents/validator",
+			payload: { issue: prompt, triage, memory, solution },
+			getResult: (json) => {
+				if (!json || typeof json !== "object") {
+					throw new Error("Missing validator result");
+				}
+				return json as {
+					valid?: boolean;
+					solution: string;
+					notes?: string | null;
+				};
+			},
+		});
+		await runStep({
+			stepId: "learning",
+			path: "/agents/learning",
+			payload: { issue: prompt, solution: validation.solution },
+			getResult: () => null,
+		});
+
+		let output = validation.solution;
+		if (validation.notes) {
+			output = `${output}\nNotes: ${validation.notes}`;
+		}
+		if (validation.valid === false) {
+			output = `${output}\n(valid: false)`;
+		}
+		setResult(output);
+	};
+
+	const runOrchestrator = async () => {
+		const response = await fetch(
+			`${env.NEXT_PUBLIC_SERVER_URL}/agents/${agentPath}`,
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ prompt }),
+			}
+		);
+
+		if (!response.ok) {
+			const text = await response.text().catch(() => "");
+			throw new Error(
+				`Agent server ${response.status}: ${text || response.statusText}`
+			);
+		}
+
+		const json = (await response.json().catch(() => null)) as {
+			result?: string;
+		} | null;
+		if (!json?.result) {
+			throw new Error("Missing result in agent response");
+		}
+
+		setResult(json.result);
+	};
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -115,32 +250,16 @@ export default function OncallDashboard({
 
 		setLoading(true);
 		setError(null);
+		setActiveStep(null);
+		setCompletedSteps({});
 
 		try {
-			const response = await fetch(
-				`${env.NEXT_PUBLIC_SERVER_URL}/agents/${agentPath}`,
-				{
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ prompt }),
-				}
-			);
-
-			if (!response.ok) {
-				const text = await response.text().catch(() => "");
-				throw new Error(
-					`Agent server ${response.status}: ${text || response.statusText}`
-				);
+			if (useSequential) {
+				await runSequentialPipeline();
+			} else {
+				await runOrchestrator();
 			}
 
-			const json = (await response.json().catch(() => null)) as {
-				result?: string;
-			} | null;
-			if (!json?.result) {
-				throw new Error("Missing result in agent response");
-			}
-
-			setResult(json.result);
 			setLastRun(new Date());
 			toast.success("Hermes responded");
 		} catch (err) {
@@ -148,6 +267,7 @@ export default function OncallDashboard({
 			setError(message);
 			toast.error("Request failed");
 		} finally {
+			setActiveStep(null);
 			setLoading(false);
 		}
 	};
@@ -164,118 +284,204 @@ export default function OncallDashboard({
 		}
 	};
 
+	const getStepStyle = (isActive: boolean, isDone: boolean) => {
+		let status = "Idle";
+		let dotClass = "border-muted-foreground/40";
+		let statusClass = "text-muted-foreground/60";
+
+		if (isDone) {
+			status = "Done";
+			dotClass = "border-foreground/70 bg-foreground/70";
+			statusClass = "text-muted-foreground";
+		}
+		if (isActive) {
+			status = "Running";
+			dotClass = "border-foreground bg-foreground animate-pulse";
+			statusClass = "text-foreground";
+		}
+
+		return { status, dotClass, statusClass };
+	};
+
 	const responseContent = getResponseContent(loading, result);
 	const learningsContent = getLearningsContent({ learnings, learningsError });
 
 	return (
 		<section className="grid gap-6">
-			<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-				<Card className="border-foreground/10">
-					<CardHeader className="border-b">
-						<CardTitle>Trigger Hermes</CardTitle>
-						<CardDescription>
-							Send a concise incident summary to the agent pipeline.
-						</CardDescription>
-						<CardAction>
-							<span className="rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em]">
-								Live
-							</span>
-						</CardAction>
-					</CardHeader>
-					<CardContent>
-						<form className="grid gap-4" onSubmit={handleSubmit}>
-							<div className="flex flex-wrap items-center justify-between gap-3 border border-foreground/10 px-3 py-2">
-								<div className="grid gap-1">
-									<Label className="text-xs" htmlFor="agent-toggle">
-										Sequential pipeline
-									</Label>
-									<span className="text-[11px] text-muted-foreground">
-										{useSequential
-											? "Routes to the sequential agent pipeline."
-											: "Routes to the orchestrator agent."}
-									</span>
-								</div>
-								<Switch
-									checked={useSequential}
-									id="agent-toggle"
-									onCheckedChange={setUseSequential}
-								/>
-							</div>
-							<div className="grid gap-2">
-								<Label htmlFor="incident-title">Incident title</Label>
-								<Input
-									id="incident-title"
-									onChange={(event) => setTitle(event.target.value)}
-									placeholder="Checkout latency spike"
-									value={title}
-								/>
-							</div>
-							<div className="grid gap-2">
-								<Label htmlFor="incident-context">Context</Label>
-								<Textarea
-									id="incident-context"
-									onChange={(event) => setContext(event.target.value)}
-									placeholder="Start time, impact, logs, metrics, recent deploys, owners..."
-									value={context}
-								/>
-							</div>
-							{error ? (
-								<div className="rounded-none border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive text-xs">
-									{error}
-								</div>
-							) : null}
-							<div className="flex flex-wrap items-center gap-3">
-								<Button disabled={!canSubmit} type="submit">
-									{loading ? "Dispatching..." : "Dispatch Hermes"}
-								</Button>
-								<span className="text-muted-foreground text-xs">
-									{lastRun
-										? `Last run: ${lastRun.toLocaleTimeString()}`
-										: "No runs yet"}
-								</span>
-							</div>
-						</form>
-					</CardContent>
-					<CardFooter className="justify-between text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
-						<span>Incident intake</span>
-						<span>{agentLabel}</span>
-					</CardFooter>
-				</Card>
-
-				<Card className="border-foreground/10">
-					<CardHeader className="border-b">
-						<CardTitle>Latest Response</CardTitle>
-						<CardDescription>Hermes output with next steps.</CardDescription>
-						<CardAction>
-							<Button
-								disabled={!result}
-								onClick={handleCopy}
-								size="xs"
-								variant="outline"
-							>
-								Copy
-							</Button>
-						</CardAction>
-					</CardHeader>
-					<CardContent className="min-h-[240px]">{responseContent}</CardContent>
-					<CardFooter className="justify-between text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
-						<span>Response</span>
-						<span>On-call</span>
-					</CardFooter>
-				</Card>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
+					Workspace
+				</div>
+				<div className="flex flex-wrap gap-2">
+					<Button
+						onClick={() => setActiveTab("agent")}
+						size="xs"
+						variant={activeTab === "agent" ? "default" : "outline"}
+					>
+						Agent
+					</Button>
+					<Button
+						onClick={() => setActiveTab("learnings")}
+						size="xs"
+						variant={activeTab === "learnings" ? "default" : "outline"}
+					>
+						Recent learnings
+					</Button>
+				</div>
 			</div>
 
-			<Card className="border-foreground/10">
-				<CardHeader className="border-b">
-					<CardTitle>Recent Learnings</CardTitle>
-					<CardDescription>Latest incident recall from memory.</CardDescription>
-				</CardHeader>
-				<CardContent className="min-h-[200px]">{learningsContent}</CardContent>
-				<CardFooter className="justify-between text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
-					<span>Memory</span>
-					<span>{learnings.length} items</span>
-				</CardFooter>
-			</Card>
+			{activeTab === "agent" ? (
+				<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+					<Card className="border-foreground/10">
+						<CardHeader className="border-b">
+							<CardTitle>Trigger Hermes</CardTitle>
+							<CardDescription>
+								Send a concise incident summary to the agent pipeline.
+							</CardDescription>
+							<CardAction>
+								<span className="rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em]">
+									Live
+								</span>
+							</CardAction>
+						</CardHeader>
+						<CardContent>
+							<form className="grid gap-4" onSubmit={handleSubmit}>
+								<div className="flex flex-wrap items-center justify-between gap-3 border border-foreground/10 px-3 py-2">
+									<div className="grid gap-1">
+										<Label className="text-xs" htmlFor="agent-toggle">
+											Sequential pipeline
+										</Label>
+										<span className="text-[11px] text-muted-foreground">
+											{useSequential
+												? "Routes to the sequential agent pipeline."
+												: "Routes to the orchestrator agent."}
+										</span>
+									</div>
+									<Switch
+										checked={useSequential}
+										id="agent-toggle"
+										onCheckedChange={setUseSequential}
+									/>
+								</div>
+								{useSequential ? (
+									<div className="grid gap-2 border border-foreground/10 px-3 py-2">
+										<div className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
+											Pipeline status
+										</div>
+										<div className="grid gap-2">
+											{sequentialSteps.map((step) => {
+												const isActive = activeStep === step.id;
+												const isDone = completedSteps[step.id];
+												const { status, dotClass, statusClass } = getStepStyle(
+													isActive,
+													isDone
+												);
+												return (
+													<div
+														className="flex items-center justify-between gap-3"
+														key={step.id}
+													>
+														<div className="flex items-center gap-2">
+															<span
+																className={`h-2 w-2 rounded-full border ${dotClass}`}
+															/>
+															<span className="text-foreground text-xs">
+																{step.label}
+															</span>
+														</div>
+														<span
+															className={`text-[10px] uppercase tracking-[0.2em] ${statusClass}`}
+														>
+															{status}
+														</span>
+													</div>
+												);
+											})}
+										</div>
+									</div>
+								) : null}
+								<div className="grid gap-2">
+									<Label htmlFor="incident-title">Incident title</Label>
+									<Input
+										id="incident-title"
+										onChange={(event) => setTitle(event.target.value)}
+										placeholder="Checkout latency spike"
+										value={title}
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="incident-context">Context</Label>
+									<Textarea
+										id="incident-context"
+										onChange={(event) => setContext(event.target.value)}
+										placeholder="Start time, impact, logs, metrics, recent deploys, owners..."
+										value={context}
+									/>
+								</div>
+								{error ? (
+									<div className="rounded-none border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive text-xs">
+										{error}
+									</div>
+								) : null}
+								<div className="flex flex-wrap items-center gap-3">
+									<Button disabled={!canSubmit} type="submit">
+										{loading ? "Dispatching..." : "Dispatch Hermes"}
+									</Button>
+									<span className="text-muted-foreground text-xs">
+										{lastRun
+											? `Last run: ${lastRun.toLocaleTimeString()}`
+											: "No runs yet"}
+									</span>
+								</div>
+							</form>
+						</CardContent>
+						<CardFooter className="justify-between text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
+							<span>Incident intake</span>
+							<span>{agentLabel}</span>
+						</CardFooter>
+					</Card>
+
+					<Card className="border-foreground/10">
+						<CardHeader className="border-b">
+							<CardTitle>Latest Response</CardTitle>
+							<CardDescription>Hermes output with next steps.</CardDescription>
+							<CardAction>
+								<Button
+									disabled={!result}
+									onClick={handleCopy}
+									size="xs"
+									variant="outline"
+								>
+									Copy
+								</Button>
+							</CardAction>
+						</CardHeader>
+						<CardContent className="min-h-[240px]">
+							{responseContent}
+						</CardContent>
+						<CardFooter className="justify-between text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
+							<span>Response</span>
+							<span>On-call</span>
+						</CardFooter>
+					</Card>
+				</div>
+			) : (
+				<Card className="border-foreground/10">
+					<CardHeader className="border-b">
+						<CardTitle>Recent Learnings</CardTitle>
+						<CardDescription>
+							Latest incident recall from memory.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="min-h-[200px]">
+						{learningsContent}
+					</CardContent>
+					<CardFooter className="justify-between text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
+						<span>Memory</span>
+						<span>{learnings.length} items</span>
+					</CardFooter>
+				</Card>
+			)}
 		</section>
 	);
 }
