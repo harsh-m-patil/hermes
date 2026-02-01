@@ -8,35 +8,63 @@ const app = new App({
   socketMode: true,
 });
 
-app.message(async ({ message, say, client }) => {
-  if (message.type !== "message") {
+app.message(async ({ message, say, client, logger }) => {
+  if (message.type !== "message" || "subtype" in message) {
+    return;
+  }
+  const text = message.text?.trim();
+  if (!text) {
     return;
   }
 
-  client.reactions.add({
-    name: "eyes",
-    channel: message.channel,
-    timestamp: message.ts,
-  });
+  const channel = message.channel;
+  const timestamp = message.ts;
 
-  const result = await callAgent(message.text);
+  try {
+    await client.reactions.add({
+      name: "eyes",
+      channel,
+      timestamp,
+    });
+  } catch (error) {
+    logger.warn("Failed to add eyes reaction", error);
+  }
 
-  client.reactions.remove({
-    name: "eyes",
-    channel: message.channel,
-    timestamp: message.ts,
-  });
+  let result = "Sorry—something went wrong. Try again.";
+  try {
+    result = await callAgent(text, timestamp);
+  } catch (error) {
+    logger.error("Agent call failed", error);
+  }
 
-  client.reactions.add({
-    name: "white_check_mark",
-    channel: message.channel,
-    timestamp: message.ts,
-  });
+  try {
+    await client.reactions.remove({
+      name: "eyes",
+      channel,
+      timestamp,
+    });
+  } catch (error) {
+    logger.warn("Failed to remove eyes reaction", error);
+  }
 
-  await say({
-    text: result,
-    thread_ts: message.ts,
-  });
+  try {
+    await client.reactions.add({
+      name: "white_check_mark",
+      channel,
+      timestamp,
+    });
+  } catch (error) {
+    logger.warn("Failed to add check reaction", error);
+  }
+
+  try {
+    await say({
+      text: result,
+      thread_ts: timestamp,
+    });
+  } catch (error) {
+    logger.error("Failed to send response", error);
+  }
 });
 
 (async () => {

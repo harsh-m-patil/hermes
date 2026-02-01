@@ -1,17 +1,28 @@
 import { env } from "@hermes/env/slack";
 
-export const callAgent = async (prompt: string) => {
+export const callAgent = async (prompt: string, ts: string) => {
   try {
     const response = await fetch(`${env.AGENT_SERVER_URL}/agents/demo`, {
       method: "POST",
-      body: JSON.stringify({ prompt })
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt, ts }),
     });
 
-    const json: { result: string } = await response.json();
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(
+        `Agent server ${response.status}: ${text || response.statusText}`
+      );
+    }
 
-    console.log(json)
+    const json = (await response.json()) as { result?: string };
+    if (!json.result) {
+      throw new Error("Missing result in agent response");
+    }
+
     return json.result;
   } catch (error) {
-    return String(error);
+    console.error("callAgent failed", error);
+    return "Sorry—something went wrong. Try again.";
   }
 };

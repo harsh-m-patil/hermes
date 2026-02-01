@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { runAgent } from "@/agents/demo";
+import { runAgent } from "@/agents/orchestrator";
 import type { DemoBody } from "@/types";
 
 export const demoRouter = new Hono().post("/", async (c) => {
@@ -15,7 +15,11 @@ export const demoRouter = new Hono().post("/", async (c) => {
     return c.json({ error: "prompt is required" }, 400);
   }
 
-  const result = await runAgent(prompt);
-  console.log(result);
-  return c.json({ result });
+  try {
+    const result = await runAgent(prompt);
+    return c.json({ result });
+  } catch (error) {
+    console.error("runAgent failed", error);
+    return c.json({ error: "Agent error" }, 500);
+  }
 });
