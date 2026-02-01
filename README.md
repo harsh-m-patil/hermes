@@ -62,10 +62,15 @@ Monorepo split by runtime:
 
 ```mermaid
 flowchart TB
-  web[apps/web\nNext.js UI (3001)] -->|HTTP| server[apps/server\nHono API (3000)\nAgents + Routes]
-  slack[apps/slack\nSlack Bolt (Socket)] -->|HTTP| server
-  server -->|DB| db[packages/db\nDrizzle + Postgres]
+  web["apps/web<br/>Next.js UI (3001)"] -->|HTTP| server["apps/server<br/>Hono API (3000)<br/>Agents + Routes"]
+  slack["apps/slack<br/>Slack Bolt (Socket)"] -->|HTTP| server
+  future["Future integrations<br/>(Jira, Linear, Google Chat, etc.)"] -.->|HTTP| server
+  server -->|DB| db["packages/db<br/>Drizzle + Postgres"]
+  
+  style future fill:#e0e7ff,stroke:#6366f1,stroke-dasharray: 5 5,color:#000
 ```
+
+**Modular Architecture**: The agent API is designed to be integration-agnostic. Any client can call the HTTP endpoints, making it easy to add new integrations like Jira, Linear, Google Chat, or any other platform that can make HTTP requests.
 
 - Web calls API via `NEXT_PUBLIC_SERVER_URL`.
 - API exposes agent endpoints and orchestrates multi-agent flows.
@@ -86,8 +91,8 @@ Orchestrator:
 flowchart TB
   req([request]) --> orch[Orchestrator]
   orch --> triage[triage_agent]
-  orch --> memory[memory_agent]\nDB
-  orch --> learning[add_learning_agent]\nDB
+  orch --> memory["memory_agent<br/>DB"]
+  orch --> learning["add_learning_agent<br/>DB"]
   orch --> logs[vercel_inspect_logs]
   triage --> maybe[gh_create_issue?]
   orch --> res([response])
