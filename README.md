@@ -4,16 +4,15 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 
 ## Features
 
-- **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **shadcn/ui** - Reusable UI components
-- **Hono** - Lightweight, performant server framework
-- **Node.js** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Turborepo** - Optimized monorepo build system
-- **Biome** - Linting and formatting
+- **TypeScript** - Type safety
+- **Next.js** - Web app
+- **Hono** - API server
+- **Slack Bolt** - Slack bot
+- **OpenAI Agents SDK** - Multi-agent workflows
+- **TailwindCSS + shadcn/ui** - UI
+- **Drizzle + PostgreSQL** - DB
+- **Turborepo + pnpm workspaces** - Monorepo
+- **Ultracite** - Lint/format
 
 ## Getting Started
 
@@ -45,9 +44,106 @@ pnpm run dev
 Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
 The API is running at [http://localhost:3000](http://localhost:3000).
 
+## Architecture
+
+Monorepo split by runtime:
+
+- `apps/web`: Next.js 16 app router UI
+- `apps/server`: Hono API + OpenAI agent workflows
+- `apps/slack`: Slack bot (Socket Mode) calling agent API
+- `packages/db`: Drizzle + Neon serverless client + schema
+- `packages/env`: Typed env loaders for server/web/slack
+- `packages/config`: Shared config (Biome/TS)
+
+## How It Works
+
+-
+### Architecture Diagram (Mermaid)
+
+```mermaid
+flowchart TB
+  web[apps/web\nNext.js UI (3001)] -->|HTTP| server[apps/server\nHono API (3000)\nAgents + Routes]
+  slack[apps/slack\nSlack Bolt (Socket)] -->|HTTP| server
+  server -->|DB| db[packages/db\nDrizzle + Postgres]
+```
+
+- Web calls API via `NEXT_PUBLIC_SERVER_URL`.
+- API exposes agent endpoints and orchestrates multi-agent flows.
+- Slack bot receives messages, stores thread context, calls agent API, replies in thread.
+- Learnings and thread history persist in Postgres via Drizzle.
+
+### Agent Flows
+
+- Orchestrator: tool-calls triage, memory, learning, vercel logs.
+- Sequential: triage -> memory -> solution -> validator -> learning.
+- Memory: fetch recent learnings from DB.
+
+### Agent Flow Diagrams (Mermaid)
+
+Orchestrator:
+
+```mermaid
+flowchart TB
+  req([request]) --> orch[Orchestrator]
+  orch --> triage[triage_agent]
+  orch --> memory[memory_agent]\nDB
+  orch --> learning[add_learning_agent]\nDB
+  orch --> logs[vercel_inspect_logs]
+  triage --> maybe[gh_create_issue?]
+  orch --> res([response])
+```
+
+Sequential:
+
+```mermaid
+flowchart TB
+  issue([issue]) --> triage
+  triage --> memory[memory]:::db
+  memory --> solution
+  solution --> validator
+  validator --> learning[learning]:::db
+  learning --> response([response])
+  classDef db fill:#f3f4f6,stroke:#9ca3af,color:#111827;
+```
+
+### Observability
+
+- Set `HERMES_AGENT_TRACE_CONSOLE=1` to print agent traces to console.
+
+## API Endpoints
+
+- `POST /agents/orchestrator` body `{ "prompt": string }` -> `{ result }`
+- `POST /agents/triage` body `{ "incident": string }` -> `{ result }`
+- `POST /agents/memory` body `{ "question": string }` -> `{ result }`
+- `POST /agents/sequential` body `{ "issue": string }` -> `{ issue, triage, memory, solution, valid, notes }`
+
+## Data Model (DB)
+
+- `learnings`: issue + solution memory.
+- `threads`: external thread metadata (Slack).
+- `thread_messages`: per-thread message log.
+
+## Environment Variables
+
+Server (`apps/server`):
+
+- `DATABASE_URL`
+- `CORS_ORIGIN` (optional)
+
+Web (`apps/web`):
+
+- `NEXT_PUBLIC_SERVER_URL`
+
+Slack (`apps/slack`):
+
+- `SLACK_BOT_TOKEN`
+- `SLACK_APP_TOKEN`
+- `AGENT_SERVER_URL`
+
 ## Git Hooks and Formatting
 
-- Format and lint fix: `pnpm run check`
+- Check: `pnpm run check` or `pnpm dlx ultracite check`
+- Fix: `pnpm run fix` or `pnpm dlx ultracite fix`
 
 ## Project Structure
 
@@ -56,8 +152,11 @@ hermes/
 ├── apps/
 │   ├── web/         # Frontend application (Next.js)
 │   └── server/      # Backend API (Hono)
+│   └── slack/       # Slack bot (Bolt)
 ├── packages/
-│   ├── api/         # API layer / business logic
+│   ├── db/          # Drizzle + schema
+│   ├── env/         # Typed env config
+│   ├── config/      # Shared config
 ```
 
 ## Available Scripts
