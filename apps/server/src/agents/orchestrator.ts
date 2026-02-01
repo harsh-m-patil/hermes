@@ -10,7 +10,7 @@ const logger = getLogger("hermes:agents");
 const agent = new Agent({
   name: "Hermes",
   instructions:
-    "You are an on-call engineer assistant for production incidents. Be extremely concise. Sacrifice grammar for the sake of concision.",
+    "You are an on-call engineer assistant for production incidents. Be extremely concise. Sacrifice grammar for the sake of concision. Escalate any issues to triage agent using triage_agent tool",
   model: "gpt-5.2-codex",
   tools: [
     triageTool,
