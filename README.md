@@ -1,6 +1,6 @@
 # hermes
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Hono, and more.
+![Web UI](./assets/web.png) 
 
 ## Features
 
@@ -174,3 +174,5 @@ hermes/
 - `pnpm run db:push`: Push schema changes to database
 - `pnpm run db:studio`: Open database studio UI
 - `pnpm run check`: Run Biome formatting and linting
+
+This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Hono, and more.
