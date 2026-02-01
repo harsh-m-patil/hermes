@@ -6,45 +6,31 @@ import { z } from "zod";
 const logger = getLogger("hermes:agents");
 
 export const LearningInputSchema = z.object({
-  incident: z.string().trim().min(1),
-  resolution: z.string().trim().min(1),
-  severity: z.enum(["sev1", "sev2", "sev3", "sev4"]).optional(),
-  metadata: z.object(),
+  issue: z.string().trim().min(1),
+  solution: z.string().trim().min(1),
 });
 
 export type LearningInput = z.infer<typeof LearningInputSchema>;
 
-export const LearningOutputSchema = z.object({
-  summary: z.string(),
-  root_cause: z.string().optional(),
-  fix_steps: z.array(z.string()),
-  tags: z.array(z.string()),
-  severity: z.enum(["sev1", "sev2", "sev3", "sev4"]).optional(),
-});
+export const LearningOutputSchema = z.object({});
 
 export type LearningResult = z.infer<typeof LearningOutputSchema>;
 
-const AddLearningSchema = LearningInputSchema.merge(LearningOutputSchema);
+const AddLearningSchema = LearningInputSchema;
 export type AddLearningInput = z.infer<typeof AddLearningSchema>;
 
 export const addLearningTool = tool({
   name: "add_learning",
   description:
-    "Write incident learning to DB. Input: {incident, resolution, summary, root_cause?, fix_steps, tags, severity?, metadata?}. Output: {id}.",
+    "Write incident learning to DB. Input: {issue, solution}. Output: {id}.",
   parameters: AddLearningSchema,
   execute: async (input) => {
     logger.debug("tool:add_learning");
     const [row] = await db
       .insert(learnings)
       .values({
-        incidentText: input.incident,
-        resolutionText: input.resolution,
-        summary: input.summary,
-        rootCause: input.root_cause ?? null,
-        fixSteps: input.fix_steps,
-        tags: input.tags,
-        severity: input.severity ?? null,
-        metadata: input.metadata ?? null,
+        issueText: input.issue,
+        solutionText: input.solution,
       })
       .returning({ id: learnings.id });
 
@@ -57,11 +43,8 @@ export const learningAgent = new Agent({
   model: "gpt-4.1-nano",
   instructions: [
     "You are a production incident learning assistant.",
-    "Derive learning fields from the incident and resolution.",
-    "Then call the add_learning tool with incident, resolution, summary, root_cause, fix_steps, tags, severity, metadata.",
-    "summary: 1-3 sentences. root_cause: 0-2 sentences.",
-    "fix_steps: 1-6 short action items. tags: 2-6 short strings.",
-    "severity: one of sev1, sev2, sev3, sev4 (omit if unknown).",
+    "Derive a clear issue and solution.",
+    "Then call the add_learning tool with issue and solution.",
   ].join("\n"),
   tools: [addLearningTool],
 });

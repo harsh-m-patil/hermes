@@ -1,8 +1,7 @@
 import { Agent, getLogger, run } from "@openai/agents";
-import { learningAgentTool } from "./learning";
 import { withAgentTrace } from "./observability";
-import { triageTool } from "./triage";
 import { vercelInspectLogsTool } from "./tools";
+import { triageTool } from "./triage";
 
 const logger = getLogger("hermes:agents");
 
@@ -10,8 +9,8 @@ const agent = new Agent({
   name: "Assistant",
   instructions:
     "You are a helpful assistant, Be extremely concise.Sacrifice grammar for the sake of concision.",
-  model: "gpt-5-mini",
-  tools: [triageTool, learningAgentTool, vercelInspectLogsTool],
+  model: "gpt-5.2",
+  tools: [triageTool, vercelInspectLogsTool],
 });
 
 export const runAgent = async (prompt: string): Promise<string> => {
