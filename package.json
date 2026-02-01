@@ -1,10 +1,17 @@
 {
   "name": "hermes",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "dotenv": "^17.2.2",
+      "typescript": "^5",
+      "zod": "^4.3.6"
+    }
+  },
   "type": "module",
   "scripts": {
     "dev": "turbo dev",
@@ -31,7 +38,8 @@
     "@types/node": "^22.13.14",
     "turbo": "^2.6.3",
     "typescript": "catalog:",
-    "ultracite": "7.1.2"
+    "ultracite": "7.1.2",
+    "vercel": "latest"
   },
   "packageManager": "pnpm@10.27.0"
 }

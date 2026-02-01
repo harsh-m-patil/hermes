@@ -54,7 +54,7 @@ export const addLearningTool = tool({
 
 export const learningAgent = new Agent({
   name: "Learning",
-  model: "gpt-5-nano",
+  model: "gpt-4.1-nano",
   instructions: [
     "You are a production incident learning assistant.",
     "Derive learning fields from the incident and resolution.",
@@ -68,5 +68,5 @@ export const learningAgent = new Agent({
 
 export const learningAgentTool = learningAgent.asTool({
   toolName: "add_learning_agent",
-  toolDescription: "Use this agent to add a learning to knowledge base"
-})
+  toolDescription: "Use this agent to add a learning to knowledge base",
+});

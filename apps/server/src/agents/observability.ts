@@ -1,7 +1,7 @@
 import {
+  addTraceProcessor,
   BatchTraceProcessor,
   ConsoleSpanExporter,
-  addTraceProcessor,
   getLogger,
   getOrCreateTrace,
   startTraceExportLoop,
@@ -9,11 +9,11 @@ import {
 
 const logger = getLogger("hermes:agents");
 
-type AgentTraceOptions = {
+interface AgentTraceOptions {
   workflowName?: string;
   groupId?: string;
   metadata?: Record<string, string>;
-};
+}
 
 export const initAgentObservability = () => {
   if (process.env.HERMES_AGENT_TRACE_CONSOLE !== "1") {
