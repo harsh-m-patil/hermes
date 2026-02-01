@@ -1,5 +1,4 @@
 import { Agent, getLogger, run } from "@openai/agents";
-import { learningAgentTool } from "./learning";
 import { withAgentTrace } from "./observability";
 import { ghCreateIssueTool, vercelInspectLogsTool } from "./tools";
 
@@ -14,7 +13,7 @@ export const triageAgent = new Agent({
     "If logs needed, call vercel_inspect_logs.",
     "If severity is sev1 or sev2, call gh_create_issue with title/body.",
   ].join("\n"),
-  tools: [vercelInspectLogsTool, ghCreateIssueTool, learningAgentTool],
+  tools: [vercelInspectLogsTool, ghCreateIssueTool],
 });
 
 export const runTriageAgent = async (incident: string) => {

@@ -1,4 +1,5 @@
 import { Agent, getLogger, run } from "@openai/agents";
+import { learningAgentTool } from "./learning";
 import { withAgentTrace } from "./observability";
 import { vercelInspectLogsTool } from "./tools";
 import { triageTool } from "./triage";
@@ -10,7 +11,7 @@ const agent = new Agent({
   instructions:
     "You are a helpful assistant, Be extremely concise.Sacrifice grammar for the sake of concision.",
   model: "gpt-5.2",
-  tools: [triageTool, vercelInspectLogsTool],
+  tools: [triageTool, vercelInspectLogsTool, learningAgentTool],
 });
 
 export const runAgent = async (prompt: string): Promise<string> => {
