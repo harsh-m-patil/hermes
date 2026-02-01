@@ -2,7 +2,11 @@ import { env } from "@hermes/env/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { demoRouter } from "./routers/demo";
+import { initAgentObservability } from "./agents/observability";
+import { demoRouter } from "./routers/orchestrator";
+import { triageRouter } from "./routers/triage";
+
+initAgentObservability();
 
 const app = new Hono();
 
@@ -24,7 +28,8 @@ app.get("/", (c) => {
   return c.text("OK");
 });
 
-app.route("/agents/demo", demoRouter);
+app.route("/agents/orchestrator", demoRouter);
+app.route("/agents/triage", triageRouter);
 
 import { serve } from "@hono/node-server";
 

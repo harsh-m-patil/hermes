@@ -1,6 +1,6 @@
 import { env } from "@hermes/env/slack";
 import { App } from "@slack/bolt";
-import { callAgent } from "./agent-utils";
+import { callOrchestratorAgent } from "./agent-utils";
 
 const app = new App({
   token: env.SLACK_BOT_TOKEN,
@@ -9,7 +9,7 @@ const app = new App({
 });
 
 app.message(async ({ message, say, client, logger }) => {
-  if (message.type !== "message" || "subtype" in message) {
+  if (message.type !== "message") {
     return;
   }
   const text = message.text?.trim();
@@ -32,7 +32,7 @@ app.message(async ({ message, say, client, logger }) => {
 
   let result = "Sorry—something went wrong. Try again.";
   try {
-    result = await callAgent(text, timestamp);
+    result = await callOrchestratorAgent(text, timestamp);
   } catch (error) {
     logger.error("Agent call failed", error);
   }

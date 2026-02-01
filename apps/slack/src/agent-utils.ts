@@ -1,12 +1,15 @@
 import { env } from "@hermes/env/slack";
 
-export const callAgent = async (prompt: string, ts: string) => {
+export const callOrchestratorAgent = async (prompt: string, ts: string) => {
   try {
-    const response = await fetch(`${env.AGENT_SERVER_URL}/agents/demo`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt, ts }),
-    });
+    const response = await fetch(
+      `${env.AGENT_SERVER_URL}/agents/orchestrator`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt, ts }),
+      }
+    );
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
