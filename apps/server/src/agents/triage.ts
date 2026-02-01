@@ -6,7 +6,7 @@ const logger = getLogger("hermes:agents");
 
 export const triageAgent = new Agent({
   name: "Triage",
-  model: "gpt-5",
+  model: "gpt-5.2",
   instructions: [
     "You are a production incident triage assistant.",
     "Return a brief triage summary.",

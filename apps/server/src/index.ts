@@ -4,7 +4,9 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { initAgentObservability } from "./agents/observability";
 import { demoRouter } from "./routers/orchestrator";
+import { sequentialRouter } from "./routers/sequential";
 import { triageRouter } from "./routers/triage";
+import { memoryRouter } from "./routers/memory";
 
 initAgentObservability();
 
@@ -30,6 +32,8 @@ app.get("/", (c) => {
 
 app.route("/agents/orchestrator", demoRouter);
 app.route("/agents/triage", triageRouter);
+app.route("/agents/memory", memoryRouter);
+app.route("/agents/sequential", sequentialRouter);
 
 import { serve } from "@hono/node-server";
 

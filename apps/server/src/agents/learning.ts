@@ -1,7 +1,8 @@
 import { db } from "@hermes/db";
 import { learnings } from "@hermes/db/schema";
-import { Agent, getLogger, tool } from "@openai/agents";
+import { Agent, getLogger, run, tool } from "@openai/agents";
 import { z } from "zod";
+import { withAgentTrace } from "./observability";
 
 const logger = getLogger("hermes:agents");
 
@@ -48,6 +49,17 @@ export const learningAgent = new Agent({
   ].join("\n"),
   tools: [addLearningTool],
 });
+
+export const runLearningAgent = async (input: LearningInput) => {
+  logger.debug("runLearningAgent");
+  const prompt = `Issue: ${input.issue}\nSolution: ${input.solution}`;
+  const result = await withAgentTrace(
+    "Learning",
+    () => run(learningAgent, prompt),
+    { metadata: { route: "learning" } }
+  );
+  return result?.finalOutput ?? null;
+};
 
 export const learningAgentTool = learningAgent.asTool({
   toolName: "add_learning_agent",
